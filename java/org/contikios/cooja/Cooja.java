@@ -53,7 +53,6 @@ import java.util.Random;
 import java.util.Set;
 import java.util.regex.Matcher;
 import java.util.zip.GZIPInputStream;
-import java.util.zip.GZIPOutputStream;
 import javax.swing.JDesktopPane;
 import javax.swing.JFrame;
 import javax.swing.JInternalFrame;
@@ -103,12 +102,9 @@ import org.contikios.cooja.radiomediums.UDGMConstantLoss;
 import org.contikios.cooja.serialsocket.SerialSocketClient;
 import org.contikios.cooja.serialsocket.SerialSocketServer;
 import org.contikios.mrm.MRM;
-import org.jdom2.Document;
 import org.jdom2.Element;
 import org.jdom2.JDOMException;
 import org.jdom2.input.SAXBuilder;
-import org.jdom2.output.Format;
-import org.jdom2.output.XMLOutputter;
 
 /**
  * Main file of COOJA Simulator. Typically, contains a visualizer for the
@@ -144,7 +140,7 @@ public class Cooja extends Observable {
   };
 
   public static File externalToolsUserSettingsFile = null;
-  private File currentConfigFile = null; /* Used to generate config relative paths */
+  File currentConfigFile = null; /* Used to generate config relative paths */
 
   // External tools setting names
   private static final Properties defaultExternalToolsSettings = getExternalToolsDefaultSettings();
@@ -1283,7 +1279,7 @@ public class Cooja extends Observable {
         rv = Math.max(rv, 1);
       } else if (simConfig.updateSim()) {
         autoQuit = true;
-        gui.saveSimulationConfig(new File(simConfig.file()));
+        sim.saveSimulationConfig(new File(simConfig.file()));
       } else if (simConfig.autoStart()) {
         autoQuit = true;
         if (!config.vis) {
@@ -1313,7 +1309,6 @@ public class Cooja extends Observable {
    * @param manualRandomSeed The random seed.
    * @return New simulation or null if recompiling failed or aborted
    * @throws SimulationCreationException If loading fails.
-   * @see #saveSimulationConfig(File)
    */
   Simulation loadSimulationConfig(Simulation.SimConfig cfg, boolean quick, Long manualRandomSeed)
   throws SimulationCreationException {
@@ -1391,30 +1386,6 @@ public class Cooja extends Observable {
     }
     setSimulation(sim);
     return sim;
-  }
-
-  /**
-   * Saves current simulation configuration to given file and notifies observers.
-   *
-   * @param file File to write
-   */
-   void saveSimulationConfig(File file) {
-    this.currentConfigFile = file; /* Used to generate config relative paths */
-    try {
-      this.currentConfigFile = this.currentConfigFile.getCanonicalFile();
-    } catch (IOException e) {
-    }
-
-    try (var out = file.getName().endsWith(".gz")
-            ? new GZIPOutputStream(new FileOutputStream(file)) : new FileOutputStream(file)) {
-      var xmlOutput = new XMLOutputter(Format.getPrettyFormat());
-      xmlOutput.getFormat().setLineSeparator("\n");
-      xmlOutput.output(new Document(extractSimulationConfig()), out);
-      logger.info("Saved to file: " + file.getAbsolutePath());
-    } catch (Exception e) {
-      logger.warn("Exception while saving simulation config: " + e);
-      e.printStackTrace();
-    }
   }
 
   /** Returns a root element containing the simulation config. */

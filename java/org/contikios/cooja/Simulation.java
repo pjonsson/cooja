@@ -28,6 +28,9 @@
 
 package org.contikios.cooja;
 import java.awt.Color;
+import java.io.File;
+import java.io.FileOutputStream;
+import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.HashMap;
@@ -36,6 +39,7 @@ import java.util.Observable;
 import java.util.Random;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.LinkedBlockingDeque;
+import java.util.zip.GZIPOutputStream;
 import javax.swing.JOptionPane;
 
 import javax.swing.JTextArea;
@@ -44,7 +48,10 @@ import org.apache.logging.log4j.LogManager;
 import org.contikios.cooja.Cooja.PluginConstructionException;
 import org.contikios.cooja.Cooja.SimulationCreationException;
 import org.contikios.cooja.mspmote.MspMote.MSPSimStop;
+import org.jdom2.Document;
 import org.jdom2.Element;
+import org.jdom2.output.Format;
+import org.jdom2.output.XMLOutputter;
 
 /**
  * A simulation consists of a number of motes and mote types.
@@ -1041,6 +1048,28 @@ public final class Simulation extends Observable {
   /** Returns the simulation configuration. */
   public SimConfig getCfg() {
     return cfg;
+  }
+
+  /**
+   * Saves current simulation configuration to given file.
+   *
+   * @param file File to write
+   */
+  void saveSimulationConfig(File file) {
+    try { // Used to generate config relative paths.
+      cooja.currentConfigFile = file.getCanonicalFile();
+    } catch (IOException e) {
+      cooja.currentConfigFile = file;
+    }
+    try (var out = file.getName().endsWith(".gz")
+            ? new GZIPOutputStream(new FileOutputStream(file)) : new FileOutputStream(file)) {
+      var xmlOutput = new XMLOutputter(Format.getPrettyFormat());
+      xmlOutput.getFormat().setLineSeparator("\n");
+      xmlOutput.output(new Document(cooja.extractSimulationConfig()), out);
+      logger.info("Saved to file: " + file.getAbsolutePath());
+    } catch (Exception e) {
+      logger.warn("Exception while saving simulation config: " + e);
+    }
   }
 
   /** Structure to hold the simulation parameters. */

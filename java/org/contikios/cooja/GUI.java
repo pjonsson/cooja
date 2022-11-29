@@ -1232,7 +1232,7 @@ public class GUI {
       logger.fatal("No write access to file: " + saveFile.getAbsolutePath());
       return null;
     }
-    cooja.saveSimulationConfig(saveFile);
+    cooja.getSimulation().saveSimulationConfig(saveFile);
     addToFileHistory(saveFile);
     return saveFile;
   }
