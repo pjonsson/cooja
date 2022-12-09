@@ -42,8 +42,6 @@ import java.util.ArrayList;
 import java.util.Base64;
 import java.util.Collection;
 import java.util.Formatter;
-import java.util.Observable;
-import java.util.Observer;
 import javax.swing.BoxLayout;
 import javax.swing.JButton;
 import javax.swing.JFileChooser;
@@ -80,7 +78,7 @@ import org.contikios.cooja.mote.memory.VarMemory;
  * @author Claes Jakobsson (based on ContikiCFS by Fredrik Osterlind)
  */
 @ClassDescription("EEPROM")
-public class ContikiEEPROM extends Observable implements MoteInterface, PolledAfterActiveTicks {
+public class ContikiEEPROM implements MoteInterface, PolledAfterActiveTicks {
   private static final Logger logger = LogManager.getLogger(ContikiEEPROM.class);
 
   public static final int EEPROM_SIZE = 1024; /* Configure EEPROM size here and in eeprom.c. Should really be multiple of 16 */
@@ -91,9 +89,6 @@ public class ContikiEEPROM extends Observable implements MoteInterface, PolledAf
   private final JLabel lastTimeLabel;
   private final JLabel lastReadLabel;
   private final JLabel lastWrittenLabel;
-
-  private int lastRead = 0;
-  private int lastWritten = 0;
 
   /**
    * Creates an interface to the EEPROM at mote.
@@ -114,15 +109,20 @@ public class ContikiEEPROM extends Observable implements MoteInterface, PolledAf
   @Override
   public void doActionsAfterTick() {
     if (moteMem.getByteValueOf("simEEPROMChanged") == 1) {
-      lastRead = moteMem.getIntValueOf("simEEPROMRead");
-      lastWritten = moteMem.getIntValueOf("simEEPROMWritten");
-
+      final var lastRead = moteMem.getIntValueOf("simEEPROMRead");
+      final var lastWritten = moteMem.getIntValueOf("simEEPROMWritten");
       moteMem.setIntValueOf("simEEPROMRead", 0);
       moteMem.setIntValueOf("simEEPROMWritten", 0);
       moteMem.setByteValueOf("simEEPROMChanged", (byte) 0);
-
-      this.setChanged();
-      this.notifyObservers(mote);
+      if (Cooja.isVisualized()) {
+        final var currentTime = mote.getSimulation().getSimulationTime();
+        EventQueue.invokeLater(() -> {
+          lastTimeLabel.setText("Last change at time: " + currentTime);
+          lastReadLabel.setText("Last change read bytes: " + lastRead);
+          lastWrittenLabel.setText("Last change wrote bytes: " + lastWritten);
+          redrawDataView();
+        });
+      }
     }
   }
 
@@ -149,20 +149,6 @@ public class ContikiEEPROM extends Observable implements MoteInterface, PolledAf
    */
   public byte[] getEEPROMData() {
     return moteMem.getByteArray("simEEPROMData", EEPROM_SIZE);
-  }
-
-  /**
-   * @return Read bytes count last change.
-   */
-  public int getLastReadCount() {
-    return lastRead;
-  }
-
-  /**
-   * @return Written bytes count last change.
-   */
-  public int getLastWrittenCount() {
-    return lastWritten;
   }
 
   static String byteArrayToPrintableCharacters(byte[] data, int offset, int length) {
@@ -253,20 +239,6 @@ public class ContikiEEPROM extends Observable implements MoteInterface, PolledAf
       redrawDataView();
     });
 
-    Observer observer = (obs, obj) -> {
-      final long currentTime = mote.getSimulation().getSimulationTime();
-      EventQueue.invokeLater(() -> {
-        lastTimeLabel.setText("Last change at time: " + currentTime);
-        lastReadLabel.setText("Last change read bytes: " + getLastReadCount());
-        lastWrittenLabel.setText("Last change wrote bytes: " + getLastWrittenCount());
-        redrawDataView();
-      });
-    };
-    this.addObserver(observer);
-
-    // Saving observer reference for releaseInterfaceVisualizer
-    panel.putClientProperty("intf_obs", observer);
-
     panel.setMinimumSize(new Dimension(140, 60));
     panel.setPreferredSize(new Dimension(140, 60));
 
@@ -280,15 +252,7 @@ public class ContikiEEPROM extends Observable implements MoteInterface, PolledAf
   }
 
   @Override
-  public void releaseInterfaceVisualizer(JPanel panel) {
-    Observer observer = (Observer) panel.getClientProperty("intf_obs");
-    if (observer == null) {
-      logger.fatal("Error when releasing panel, observer is null");
-      return;
-    }
-
-    this.deleteObserver(observer);
-  }
+  public void releaseInterfaceVisualizer(JPanel panel) {}
 
   @Override
   public Collection<Element> getConfigXML() {
