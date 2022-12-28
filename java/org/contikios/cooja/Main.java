@@ -42,13 +42,12 @@ import org.apache.logging.log4j.core.config.builder.api.ConfigurationBuilderFact
 import org.apache.logging.log4j.core.config.builder.impl.BuiltConfiguration;
 import org.contikios.cooja.Cooja.Config;
 import picocli.CommandLine;
+import picocli.CommandLine.ArgGroup;
 import picocli.CommandLine.Command;
 import picocli.CommandLine.Option;
 import picocli.CommandLine.Parameters;
 
 import java.awt.GraphicsEnvironment;
-import java.io.File;
-import java.net.URI;
 import java.nio.file.Files;
 import java.nio.file.Path;
 
@@ -58,8 +57,21 @@ import java.nio.file.Path;
 @Command(version = {
         "Cooja " + Cooja.VERSION + ", Contiki-NG build interface version " + Cooja.CONTIKI_NG_BUILD_VERSION,
         "JVM: ${java.version} (${java.vendor} ${java.vm.name} ${java.vm.version})",
-        "OS: ${os.name} ${os.version} ${os.arch}"}, sortOptions = false, sortSynopsis = false)
+        "OS: ${os.name} ${os.version} ${os.arch}"}, sortOptions = false, sortSynopsis = false,
+        parameterListHeading = "%n")
 class Main {
+  /**
+   * Option for specifying Cooja path.
+   */
+  @Option(names = "--cooja", paramLabel = "DIR", description = "Cooja directory", required = true)
+  String coojaPath;
+
+  /**
+   * Option for specifying javac path.
+   */
+  @Option(names = "--javac", paramLabel = "FILE", description = "javac binary", required = true)
+  String javac;
+
   /**
    * Option for specifying if a GUI should be used.
    */
@@ -67,77 +79,84 @@ class Main {
   Boolean gui;
 
   /**
-   * Option for specifying log4j2 config file.
-   */
-  @Option(names = "--log4j2", paramLabel = "FILE", description = "the log4j2 config file")
-  String logConfigFile;
-
-  /**
-   * Option for specifying log directory.
-   */
-  @Option(names = "--logdir", paramLabel = "DIR", description = "the log directory use")
-  String logDir = ".";
-
-  /**
-   * Option for also logging stdout output to a file.
-   */
-  @Option(names = "--logname", paramLabel = "NAME", description = "the filename for the log")
-  String logName;
-
-  /**
-   * Option for specifying Contiki-NG path.
-   */
-  @Option(names = "--contiki", paramLabel = "DIR", description = "the Contiki-NG directory")
-  String contikiPath;
-
-  /**
-   * Option for specifying Cooja path.
-   */
-  @Option(names = "--cooja", paramLabel = "DIR", description = "the Cooja directory")
-  String coojaPath;
-
-  /**
-   * Option for specifying javac path.
-   */
-  @Option(names = "--javac", paramLabel = "FILE", description = "the javac binary", required = true)
-  String javac;
-
-  /**
-   * Option for specifying external user config file.
-   */
-  @Option(names = "--config", paramLabel = "FILE", description = "the filename for external user config")
-  String externalUserConfig;
-
-  /**
-   * Option for specifying seed used for simulation.
-   */
-  @Option(names = "--random-seed", paramLabel = "SEED", description = "the random seed")
-  Long randomSeed;
-
-  /**
-   * Automatically start simulations.
-   */
-  @Option(names = "--autostart", description = "automatically start simulations")
-  boolean autoStart;
-
-  /**
    * Option for specifying simulation files to load.
    */
   @Parameters(paramLabel = "FILE", description = "one or more simulation files")
   String[] simulationFiles;
 
-  /**
-   * Option for instructing Cooja to update the simulation file (.csc).
-   */
-  @Option(names = "--update-simulation", description = "write an updated simulation file (.csc) and exit")
-  boolean updateSimulation;
+  @ArgGroup(validate = false, heading = "%nCooja paths:%n")
+  CoojaConfig path;
 
-  @Option(names = "--version", versionHelp = true,
-          description = "print version information and exit")
-  boolean versionRequested;
+  static class CoojaConfig {
+    /**
+     * Option for specifying external user config file.
+     */
+    @Option(names = "--config", paramLabel = "FILE", description = "filename for external user config")
+    String externalUserConfig;
 
-  @Option(names = {"-h", "--help"}, usageHelp = true, description = "display a help message")
-  boolean helpRequested;
+    /**
+     * Option for specifying Contiki-NG path.
+     */
+    @Option(names = "--contiki", paramLabel = "DIR", description = "Contiki-NG directory")
+    String contikiPath;
+  }
+
+  @ArgGroup(validate = false, heading = "%nLog configuration:%n")
+  LogConfig log;
+
+  static class LogConfig {
+    /**
+     * Option for specifying log directory.
+     */
+    @Option(names = "--logdir", paramLabel = "DIR", description = "log directory use")
+    String logDir = ".";
+
+    /**
+     * Option for also logging stdout output to a file.
+     */
+    @Option(names = "--logname", paramLabel = "NAME", description = "filename for the log")
+    String logName;
+
+    /**
+     * Option for specifying log4j2 config file.
+     */
+    @Option(names = "--log4j2", paramLabel = "FILE", description = "log4j2 config file")
+    String logConfigFile;
+  }
+
+  @ArgGroup(validate = false, heading = "%nSimulation config:%n")
+  SimulationConfig sim;
+
+  static class SimulationConfig {
+    /**
+     * Automatically start simulations.
+     */
+    @Option(names = "--autostart", description = "automatically start simulations")
+    boolean autoStart;
+
+    /**
+     * Option for specifying seed used for simulation.
+     */
+    @Option(names = "--random-seed", paramLabel = "SEED", description = "random seed")
+    Long randomSeed;
+
+    /**
+     * Option for instructing Cooja to update the simulation file (.csc).
+     */
+    @Option(names = "--update-simulation", description = "write an updated simulation file (.csc) and exit")
+    boolean updateSimulation;
+  }
+
+  @ArgGroup(validate = false, heading = "%nQuery options:%n")
+  Info info;
+
+  static class Info {
+    @Option(names = "--version", versionHelp = true, description = "print version information and exit")
+    boolean versionRequested;
+
+    @Option(names = "--help", usageHelp = true, description = "display a help message")
+    boolean helpRequested;
+  }
 
   public static void main(String[] args) {
     Main options = new Main();
@@ -149,11 +168,11 @@ class Main {
       System.exit(1);
     }
 
-    if (options.helpRequested) {
+    if (options.info.helpRequested) {
       commandLine.usage(System.out);
       return;
     }
-    if (options.versionRequested) {
+    if (options.info.versionRequested) {
       commandLine.printVersionHelp(System.out);
       return;
     }
@@ -164,7 +183,7 @@ class Main {
       System.exit(1);
     }
 
-    if (options.updateSimulation && !options.gui) {
+    if (options.sim.updateSimulation && !options.gui) {
       System.err.println("Can only update simulation with --gui");
       System.exit(1);
     }
@@ -172,12 +191,12 @@ class Main {
     if (!options.gui) {
       // Ensure no UI is used by Java
       System.setProperty("java.awt.headless", "true");
-      Path logDirPath = Path.of(options.logDir);
+      Path logDirPath = Path.of(options.log.logDir);
       if (!Files.exists(logDirPath)) {
         try {
           Files.createDirectory(logDirPath);
         } catch (IOException e) {
-          System.err.println("Could not create log directory '" + options.logDir + "'");
+          System.err.println("Could not create log directory '" + options.log.logDir + "'");
           System.exit(1);
         }
       }
@@ -217,40 +236,21 @@ class Main {
         System.err.println("File '" + file + "' does not exist");
         System.exit(1);
       }
-      var autoStart = map.getOrDefault("autostart", Boolean.toString(options.autoStart || !options.gui));
-      var updateSim = map.getOrDefault("update-simulation", Boolean.toString(options.updateSimulation));
-      var logDir = map.getOrDefault("logdir", options.logDir);
+      var autoStart = map.getOrDefault("autostart", Boolean.toString(options.sim.autoStart || !options.gui));
+      var updateSim = map.getOrDefault("update-simulation", Boolean.toString(options.sim.updateSimulation));
+      var logDir = map.getOrDefault("logdir", options.log.logDir);
       simConfigs.add(new Simulation.SimConfig(file, Boolean.parseBoolean(autoStart), Boolean.parseBoolean(updateSim),
                                               logDir, map));
     }
 
-    if (options.logConfigFile != null && !Files.exists(Path.of(options.logConfigFile))) {
-      System.err.println("Configuration file '" + options.logConfigFile + "' does not exist");
+    if (options.log.logConfigFile != null && !Files.exists(Path.of(options.log.logConfigFile))) {
+      System.err.println("Configuration file '" + options.log.logConfigFile + "' does not exist");
       System.exit(1);
     }
 
-    if (options.contikiPath != null && !Files.exists(Path.of(options.contikiPath))) {
-      System.err.println("Contiki-NG path '" + options.contikiPath + "' does not exist");
+    if (options.path.contikiPath != null && !Files.exists(Path.of(options.path.contikiPath))) {
+      System.err.println("Contiki-NG path '" + options.path.contikiPath + "' does not exist");
       System.exit(1);
-    }
-
-    if (options.coojaPath == null) {
-      try {
-        /* Find path to Cooja installation directory from code base */
-        URI domain_uri = Cooja.class.getProtectionDomain().getCodeSource().getLocation().toURI();
-        Path path = Path.of(domain_uri).toAbsolutePath();
-        File fp = path.toFile();
-        if (fp.isFile()) {
-          // Get the directory where the JAR file is placed
-          path = path.getParent();
-        }
-        // Cooja JAR/classes are either in the dist or build directories, and we want the installation directory
-        options.coojaPath = path.getParent().normalize().toString();
-      } catch (Exception e) {
-        System.err.println("Failed to detect Cooja path: " + e);
-        System.err.println("Specify the path to Cooja with -cooja=PATH");
-        System.exit(1);
-      }
     }
 
     if (!options.coojaPath.endsWith("/")) {
@@ -267,14 +267,14 @@ class Main {
       System.exit(1);
     }
 
-    if (options.logName != null && !options.logName.endsWith(".log")) {
-      options.logName += ".log";
+    if (options.log.logName != null && !options.log.logName.endsWith(".log")) {
+      options.log.logName += ".log";
     }
 
-    var cfg = new Config(options.gui, options.randomSeed, options.externalUserConfig,
-            options.logDir, options.contikiPath, options.coojaPath, options.javac);
+    var cfg = new Config(options.gui, options.sim.randomSeed, options.path.externalUserConfig,
+            options.log.logDir, options.path.contikiPath, options.coojaPath, options.javac);
     // Configure logger
-    if (options.logConfigFile == null) {
+    if (options.log.logConfigFile == null) {
       ConfigurationBuilder<BuiltConfiguration> builder = ConfigurationBuilderFactory.newConfigurationBuilder();
       builder.setStatusLevel(Level.INFO);
       builder.setConfigurationName("DefaultConfig");
@@ -290,10 +290,10 @@ class Main {
       builder.add(appenderBuilder);
       builder.add(builder.newLogger("org.apache.logging.log4j", Level.DEBUG)
               .add(builder.newAppenderRef("Stdout")).addAttribute("additivity", false));
-      if (options.logName != null) {
+      if (options.log.logName != null) {
         // Configure logfile file appender.
         appenderBuilder = builder.newAppender("File", "FILE")
-                .addAttribute("fileName", options.logDir + "/" + options.logName)
+                .addAttribute("fileName", options.log.logDir + "/" + options.log.logName)
                 .addAttribute("Append", "false");
         appenderBuilder.add(builder.newLayout("PatternLayout")
                 .addAttribute("pattern", "[%d{HH:mm:ss} - %t] [%F:%L] [%p] - %m%n"));
@@ -314,7 +314,7 @@ class Main {
       Configurator.initialize(builder.build());
       Cooja.go(cfg, simConfigs);
     } else {
-      Configurator.initialize("ConfigFile", options.logConfigFile);
+      Configurator.initialize("ConfigFile", options.log.logConfigFile);
       Cooja.go(cfg, simConfigs);
     }
   }
